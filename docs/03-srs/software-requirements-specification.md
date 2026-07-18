@@ -333,48 +333,60 @@ This section contains implementation-ready specifications. All 88 functional req
   - Lock payments to approved invoices only.
 
 #### **SRS-FIN-002: Expense Management (FR-033, FR-034, FR-035, FR-036)**
-- **Description**: Record general expenses, support employee claims with mandatory attachments, and track reimbursement status.
+- **Description**: Record general expenses, support employee claims with multiple itemized receipts under one header claim, and track reimbursement status.
 - **Actors**: Employee, Finance Staff, Department Manager.
 - **Preconditions**: User account is active.
 - **Trigger**: User calls `/api/v1/finance/expenses` or `/api/v1/finance/employee-expenses`.
 - **Main Flow**:
-  1. Employee inputs expense details, category, and uploads supporting receipt attachment.
-  2. System checks attachment exists (mandatory by policy).
-  3. Claim transitions to `SUBMITTED` and enters approval routing.
-  4. Upon approval, Finance staff records reimbursement.
-  5. Claim status changes to `REIMBURSED`.
+  1. Employee creates an expense claim header, specifying currency.
+  2. Employee inserts one or more itemized receipts as `employee_expense_items` (each item contains its category, description, amount, and receipt attachment reference).
+  3. System validates that each item has a valid, uploaded receipt attachment (mandatory).
+  4. System updates the claim header's `total_amount` by summing the items' amounts.
+  5. Claim transitions to `SUBMITTED` and enters approval routing.
+  6. Upon approval, Finance staff records reimbursement.
+  7. Claim status changes to `REIMBURSED`.
 - **Alternative Flows**:
   - **AF-1 (Mobile Photo Submission)**: Employee uses mobile app to take photo of receipt. Mobile triggers upload and starts background OCR processing.
-- **Postconditions**: Expense logged, attachment cataloged, status tracked.
-- **Validation Rules**: Date must not be in future. File type must be PDF/Image, max 10MB.
+  - **AF-2 (Soft Delete Claim)**: Employee soft deletes a claim before submission. System marks the parent claim as deleted (`deleted_at = NOW()`) and uses **Application-Layer Cascading** to mark all linked `employee_expense_items` as soft-deleted in the same transaction.
+- **Postconditions**: Expense logged, itemized receipts cataloged, status tracked.
+- **Validation Rules**: 
+  - Claim date must not be in the future. 
+  - Item amount must be greater than or equal to zero (`CHECK (amount >= 0)`). 
+  - File type must be PDF/Image, max 10MB.
 - **Business Rules**: Expenses above configurable thresholds must route through manager approval.
 - **Permissions**: `finance.expenses.write` (Staff), `employee.expenses.submit` (Employee).
 - **Events Published**: `Finance.ExpenseRecorded`, `Finance.EmployeeExpenseSubmitted`, `Finance.EmployeeExpenseReimbursed`.
 - **Events Consumed**: None.
 - **Acceptance Criteria**:
-  - Enforce attachment presence before submission.
-  - Expense status tracks accurately.
+  - Enforce attachment presence for every item before submission.
+  - Expense status and total amount track accurately.
+  - Soft-deleted parent claims correctly cascade soft-deletes to all child items.
 
 #### **SRS-FIN-003: Petty Cash Administration (FR-037, FR-038)**
-- **Description**: Manage petty cash funds, enforce limits, and record reconciliations.
+- **Description**: Manage petty cash funds, enforce limits, and record reconciliations using an append-only transaction ledger.
 - **Actors**: Custodian, Finance Staff.
 - **Preconditions**: Fund account created and active.
 - **Trigger**: Call to `/api/v1/finance/petty-cash`.
 - **Main Flow**:
   1. Custodian registers a disbursement transaction.
   2. System verifies transaction is within individual disbursement limit.
-  3. System updates active fund balance.
-  4. Custodian performs periodic count and submits reconciliation.
+  3. System inserts transaction entry to `finance.petty_cash_ledger` (specifying type as `WITHDRAWAL`, reference number, amount, custodian ID, and description).
+  4. System updates active fund balance in `finance.petty_cash` (balance must not drop below zero).
+  5. Custodian performs periodic count and submits reconciliation (inserting type `RECONCILIATION_DISCREPANCY` if counts differ).
 - **Exception Flows**:
   - **EF-1 (Disbursement Limit Exceeded)**: Request exceeding configured transaction limit rejects with `400 Bad Request`.
-  - **EF-2 (Insufficent Fund Balance)**: Attempting to disburse more than the current fund balance rejects with `422 Unprocessable Entity`.
-- **Validation Rules**: Disbursement amount > 0.
-- **Business Rules**: Petty cash ledger must be append-only.
+  - **EF-2 (Insufficent Fund Balance)**: Attempting to disburse more than the current fund balance rejects with `422 Unprocessable Entity` (`CHECK (balance >= 0)`).
+  - **EF-3 (Ledger Alteration)**: Any SQL update/delete query on `petty_cash_ledger` fails due to database level triggers.
+- **Validation Rules**: Disbursement/deposit amount must be greater than or equal to zero (`CHECK (amount >= 0)`).
+- **Business Rules**: 
+  - Petty cash ledger must be strictly append-only. 
+  - All balance changes must be matched by a ledger record.
 - **Permissions**: `finance.pettycash.custodian`, `finance.pettycash.write` (Staff).
 - **Events Published**: `Finance.PettyCashDisbursed`, `Finance.PettyCashReconciled`.
 - **Acceptance Criteria**:
-  - Transactions reject if above limit.
+  - Transactions reject if above limit or if balance would drop below zero.
   - Ledgers match physical count updates.
+  - Verification that updates/deletions on ledger return SQL errors.
 
 #### **SRS-FIN-004: Core Finance Utilities (FR-042, FR-043, FR-044, FR-045)**
 - **Description**: Enforce multi-currency tracking, apply tax policies, compile cash flows, and trace project costs.
@@ -557,13 +569,17 @@ This section contains implementation-ready specifications. All 88 functional req
 - **Trigger**: User requests AI assistance.
 - **Main Flow**:
   1. User calls AI helper endpoint.
-  2. System constructs context-aware prompt, enforcing user data permissions.
-  3. Sends prompt to LLM service.
-  4. Returns recommendation to UI.
-  5. User accepts or rejects the suggestion.
-  6. Interaction metrics (token count, latency, decision) are saved in `ai.logs`.
+  2. System resolves active provider and fallback adapter.
+  3. System constructs context-aware prompt, enforcing user data permissions.
+  4. Prompt is formatted specifically for the target LLM provider (using system directives and standard schemas).
+  5. Sends prompt to LLM service (Gemini or Bedrock).
+  6. Normalizes the unstructured JSON response (extracting JSON blocks out of markdown fences, parsing standard keys).
+  7. Validates the normalized response using Zod schema models before presenting to the client.
+  8. Returns validated recommendation to UI.
+  9. User accepts or rejects the suggestion.
+  10. Interaction metrics (token count, latency, decision) are saved in `ai.logs`.
 - **Exception Flows**:
-  - **EF-1 (AI Outage)**: If the LLM service is unavailable, fail over to the secondary provider (e.g. from Gemini to Bedrock). If both fail, return a user-friendly error. Core workflows must continue to operate.
+  - **EF-1 (AI Outage)**: If the primary LLM provider (Google Gemini) is unavailable, the Model Abstraction Layer automatically switches to the fallback provider adapter (AWS Bedrock). The adapter formats the prompt to match Bedrock's model structure, calls the Bedrock API, and normalizes the response through the normalization layer before returning. If both fail, return a user-friendly error. Core workflows must continue to operate.
 - **Business Rules**: AI cannot make autonomous financial decisions (BR-20, C-02).
 - **Permissions**: `ai.assist`.
 - **Events Published**: `AI.AIAssistanceRequested`, `AI.AISuggestionReady`, `AI.AIAssistanceAccepted`.
@@ -571,6 +587,7 @@ This section contains implementation-ready specifications. All 88 functional req
   - System presents recommendations as drafts only.
   - Token counts and performance metrics save correctly.
   - Permission checks restrict AI context.
+  - Response normalization parses raw outputs successfully without causing Zod validation errors.
 
 ---
 

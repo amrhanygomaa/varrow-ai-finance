@@ -283,14 +283,14 @@ GET /api/v1/catalog/products?search=laptop
 
 | Endpoint | Method | Auth | Permissions | Description |
 |---|---|---|---|---|
-| `/auth/login` | POST | No | Public | Authenticate with email/password. Returns access token + sets refresh cookie. |
-| `/auth/refresh` | POST | Cookie | Public | Rotate refresh token and issue new access token. |
-| `/auth/logout` | POST | Yes | Authenticated | Invalidate refresh token family. |
-| `/auth/password/change` | POST | Yes | Authenticated | Change own password. Invalidates all refresh tokens. |
-| `/auth/password/reset-request` | POST | No | Public | Request password reset email. |
-| `/auth/password/reset` | POST | No | Public | Reset password with token. |
+| `/login` | POST | No | Public | Authenticate with email/password. Returns access token + sets refresh cookie. |
+| `/refresh` | POST | Cookie | Public | Rotate refresh token and issue new access token. |
+| `/logout` | POST | Yes | Authenticated | Invalidate refresh token family. |
+| `/password/change` | POST | Yes | Authenticated | Change own password. Invalidates all refresh tokens. |
+| `/password/reset-request` | POST | No | Public | Request password reset email. |
+| `/password/reset` | POST | No | Public | Reset password with token. |
 
-### POST `/auth/login`
+### POST `/login`
 
 **Request Body:**
 ```json
@@ -332,7 +332,7 @@ GET /api/v1/catalog/products?search=laptop
 
 ## Module 2: Identity — Users
 
-**Base Route:** `/api/v1/identity/users`
+**Base Route:** `/api/v1/identity`
 
 | Endpoint | Method | Auth | Permissions | Description |
 |---|---|---|---|---|
@@ -379,7 +379,7 @@ GET /api/v1/catalog/products?search=laptop
 
 ## Module 3: Identity — Roles & Permissions
 
-**Base Route:** `/api/v1/identity/roles`
+**Base Route:** `/api/v1/identity`
 
 | Endpoint | Method | Auth | Permissions | Description |
 |---|---|---|---|---|
@@ -402,7 +402,7 @@ GET /api/v1/catalog/products?search=laptop
 
 ## Module 4: Catalog — Customers
 
-**Base Route:** `/api/v1/catalog/customers`
+**Base Route:** `/api/v1/catalog`
 **Ownership:** Catalog Module (ADR-004). Write access restricted to catalog management roles.
 
 | Endpoint | Method | Auth | Permissions | Description |
@@ -439,7 +439,7 @@ GET /api/v1/catalog/products?search=laptop
 
 ## Module 5: Catalog — Vendors
 
-**Base Route:** `/api/v1/catalog/vendors`
+**Base Route:** `/api/v1/catalog`
 **Ownership:** Catalog Module (ADR-004).
 
 | Endpoint | Method | Auth | Permissions | Description |
@@ -457,7 +457,7 @@ GET /api/v1/catalog/products?search=laptop
 
 ## Module 6: Catalog — Contacts
 
-**Base Route:** `/api/v1/catalog/contacts`
+**Base Route:** `/api/v1/catalog`
 **Ownership:** Catalog Module (ADR-004).
 
 | Endpoint | Method | Auth | Permissions | Description |
@@ -474,7 +474,7 @@ GET /api/v1/catalog/products?search=laptop
 
 ## Module 7: Catalog — Products
 
-**Base Route:** `/api/v1/catalog/products`
+**Base Route:** `/api/v1/catalog`
 **Ownership:** Catalog Module (ADR-004). Only the Catalog module writes. Sales/Procurement consume via read models.
 
 | Endpoint | Method | Auth | Permissions | Description |
@@ -524,7 +524,7 @@ GET /api/v1/catalog/products?search=laptop
 
 ## Module 8: Catalog — Services
 
-**Base Route:** `/api/v1/catalog/services`
+**Base Route:** `/api/v1/catalog`
 **Ownership:** Catalog Module (ADR-004).
 
 | Endpoint | Method | Auth | Permissions | Description |
@@ -541,7 +541,7 @@ GET /api/v1/catalog/products?search=laptop
 
 ## Module 9: Sales — Quotations
 
-**Base Route:** `/api/v1/sales/quotations`
+**Base Route:** `/api/v1/sales`
 
 | Endpoint | Method | Auth | Permissions | Description |
 |---|---|---|---|---|
@@ -593,7 +593,7 @@ GET /api/v1/catalog/products?search=laptop
 
 ## Module 10: Sales — Sales Invoices
 
-**Base Route:** `/api/v1/sales/sales-invoices`
+**Base Route:** `/api/v1/sales`
 
 | Endpoint | Method | Auth | Permissions | Description |
 |---|---|---|---|---|
@@ -641,7 +641,7 @@ GET /api/v1/catalog/products?search=laptop
 
 ## Module 11: Sales — Receipts
 
-**Base Route:** `/api/v1/sales/receipts`
+**Base Route:** `/api/v1/sales`
 
 | Endpoint | Method | Auth | Permissions | Description |
 |---|---|---|---|---|
@@ -677,7 +677,7 @@ GET /api/v1/catalog/products?search=laptop
 
 ## Module 12: Procurement — Purchase Orders
 
-**Base Route:** `/api/v1/procurement/purchase-orders`
+**Base Route:** `/api/v1/procurement`
 
 | Endpoint | Method | Auth | Permissions | Description |
 |---|---|---|---|---|
@@ -703,7 +703,7 @@ GET /api/v1/catalog/products?search=laptop
 
 ## Module 13: Finance — Purchase Invoices
 
-**Base Route:** `/api/v1/finance/purchase-invoices`
+**Base Route:** `/api/v1/finance`
 
 | Endpoint | Method | Auth | Permissions | Description |
 |---|---|---|---|---|
@@ -727,7 +727,7 @@ GET /api/v1/catalog/products?search=laptop
 
 ## Module 14: Finance — Payments
 
-**Base Route:** `/api/v1/finance/payments`
+**Base Route:** `/api/v1/finance`
 
 | Endpoint | Method | Auth | Permissions | Description |
 |---|---|---|---|---|
@@ -762,7 +762,7 @@ GET /api/v1/catalog/products?search=laptop
 
 ## Module 15: Finance — Expenses & Expense Categories
 
-**Base Route:** `/api/v1/finance/expenses`
+**Base Route:** `/api/v1/finance`
 
 | Endpoint | Method | Auth | Permissions | Description |
 |---|---|---|---|---|
@@ -771,7 +771,7 @@ GET /api/v1/catalog/products?search=laptop
 | `/expenses` | POST | Yes | `expenses:create` | Record an expense. Requires `Idempotency-Key`. |
 | `/expenses/{expenseId}` | PUT | Yes | `expenses:update` | Update expense. |
 
-**Base Route (Categories):** `/api/v1/finance/expense-categories`
+**Base Route:** `/api/v1/finance`
 
 | Endpoint | Method | Auth | Permissions | Description |
 |---|---|---|---|---|
@@ -786,7 +786,7 @@ GET /api/v1/catalog/products?search=laptop
 
 ## Module 16: Finance — Employee Expenses
 
-**Base Route:** `/api/v1/finance/employee-expenses`
+**Base Route:** `/api/v1/finance`
 
 | Endpoint | Method | Auth | Permissions | Description |
 |---|---|---|---|---|
@@ -802,7 +802,7 @@ GET /api/v1/catalog/products?search=laptop
 
 ## Module 17: Finance — Petty Cash
 
-**Base Route:** `/api/v1/finance/petty-cash`
+**Base Route:** `/api/v1/finance`
 
 | Endpoint | Method | Auth | Permissions | Description |
 |---|---|---|---|---|
@@ -824,7 +824,7 @@ GET /api/v1/catalog/products?search=laptop
 
 ## Module 18: Finance — Cash Flow
 
-**Base Route:** `/api/v1/finance/cash-flow`
+**Base Route:** `/api/v1/finance`
 
 | Endpoint | Method | Auth | Permissions | Description |
 |---|---|---|---|---|
@@ -841,14 +841,14 @@ GET /api/v1/catalog/products?search=laptop
 
 ## Module 19: Finance — Currencies & Exchange Rates
 
-**Base Route:** `/api/v1/finance/currencies`
+**Base Route:** `/api/v1/finance`
 
 | Endpoint | Method | Auth | Permissions | Description |
 |---|---|---|---|---|
 | `/currencies` | GET | Yes | `currencies:read` | List supported currencies. |
 | `/currencies` | POST | Yes | `currencies:create` | Add a currency. |
 
-**Base Route:** `/api/v1/finance/exchange-rates`
+**Base Route:** `/api/v1/finance`
 
 | Endpoint | Method | Auth | Permissions | Description |
 |---|---|---|---|---|
@@ -866,7 +866,7 @@ GET /api/v1/catalog/products?search=laptop
 
 ## Module 20: Finance — Taxes
 
-**Base Route:** `/api/v1/finance/taxes`
+**Base Route:** `/api/v1/finance`
 
 | Endpoint | Method | Auth | Permissions | Description |
 |---|---|---|---|---|
@@ -886,11 +886,11 @@ GET /api/v1/catalog/products?search=laptop
 
 | Endpoint | Method | Auth | Permissions | Description |
 |---|---|---|---|---|
-| `/projects` | GET | Yes | `projects:read` | List projects. |
-| `/projects/{projectId}` | GET | Yes | `projects:read` | Get project details. |
-| `/projects` | POST | Yes | `projects:create` | Create a project. |
-| `/projects/{projectId}` | PUT | Yes | `projects:update` | Update project. |
-| `/projects/{projectId}/profitability` | GET | Yes | `projects:read` | Get profitability analysis (revenue vs. costs). |
+| `/` | GET | Yes | `projects:read` | List projects. |
+| `/{projectId}` | GET | Yes | `projects:read` | Get project details. |
+| `/` | POST | Yes | `projects:create` | Create a project. |
+| `/{projectId}` | PUT | Yes | `projects:update` | Update project. |
+| `/{projectId}/profitability` | GET | Yes | `projects:read` | Get profitability analysis (revenue vs. costs). |
 
 **Business Rules:**
 - Profitability is computed by aggregating invoices, receipts, expenses, and POs linked to the project.
@@ -900,7 +900,7 @@ GET /api/v1/catalog/products?search=laptop
 
 ## Module 22: Workflow — Approval Workflows
 
-**Base Route:** `/api/v1/workflow/approval-workflows`
+**Base Route:** `/api/v1/workflow`
 
 | Endpoint | Method | Auth | Permissions | Description |
 |---|---|---|---|---|
@@ -910,7 +910,7 @@ GET /api/v1/catalog/products?search=laptop
 | `/approval-workflows/{workflowId}` | PUT | Yes | `workflows:update` | Update workflow and steps. |
 | `/approval-workflows/{workflowId}` | DELETE | Yes | `workflows:delete` | Delete workflow. |
 
-**Base Route:** `/api/v1/workflow/approval-requests`
+**Base Route:** `/api/v1/workflow`
 
 | Endpoint | Method | Auth | Permissions | Description |
 |---|---|---|---|---|
@@ -934,15 +934,15 @@ GET /api/v1/catalog/products?search=laptop
 
 | Endpoint | Method | Auth | Permissions | Description |
 |---|---|---|---|---|
-| `/documents/attachments/upload` | POST | Yes | `attachments:create` | Upload a file. `multipart/form-data`. |
-| `/documents/attachments/{attachmentId}` | GET | Yes | `attachments:read` | Get attachment metadata. |
-| `/documents/attachments/{attachmentId}/download` | GET | Yes | `attachments:read` | Get pre-signed S3 download URL. |
-| `/documents/attachments` | GET | Yes | `attachments:read` | List attachments for a record. Filter by `module_reference` and `record_id`. |
-| `/documents/attachments/{attachmentId}` | DELETE | Yes | `attachments:delete` | Soft-delete attachment. |
-| `/documents/ocr/{attachmentId}` | GET | Yes | `ocr:read` | Get OCR extraction results. |
-| `/documents/ocr/{attachmentId}/verify` | POST | Yes | `ocr:verify` | Mark OCR result as verified by human. |
+| `/attachments/upload` | POST | Yes | `attachments:create` | Upload a file. `multipart/form-data`. |
+| `/attachments/{attachmentId}` | GET | Yes | `attachments:read` | Get attachment metadata. |
+| `/attachments/{attachmentId}/download` | GET | Yes | `attachments:read` | Get pre-signed S3 download URL. |
+| `/attachments` | GET | Yes | `attachments:read` | List attachments for a record. Filter by `module_reference` and `record_id`. |
+| `/attachments/{attachmentId}` | DELETE | Yes | `attachments:delete` | Soft-delete attachment. |
+| `/ocr/{attachmentId}` | GET | Yes | `ocr:read` | Get OCR extraction results. |
+| `/ocr/{attachmentId}/verify` | POST | Yes | `ocr:verify` | Mark OCR result as verified by human. |
 
-### POST `/documents/attachments/upload`
+### POST `/attachments/upload`
 
 **Content-Type:** `multipart/form-data`
 
@@ -965,18 +965,18 @@ GET /api/v1/catalog/products?search=laptop
 
 | Endpoint | Method | Auth | Permissions | Description |
 |---|---|---|---|---|
-| `/notifications` | GET | Yes | Authenticated | List current user's notifications (cursor pagination). |
-| `/notifications/unread-count` | GET | Yes | Authenticated | Get count of unread notifications. |
-| `/notifications/{notificationId}/read` | POST | Yes | Authenticated | Mark as read. |
-| `/notifications/read-all` | POST | Yes | Authenticated | Mark all as read. |
-| `/notifications/preferences` | GET | Yes | Authenticated | Get user notification preferences. |
-| `/notifications/preferences` | PUT | Yes | Authenticated | Update notification preferences. |
+| `/` | GET | Yes | Authenticated | List current user's notifications (cursor pagination). |
+| `/unread-count` | GET | Yes | Authenticated | Get count of unread notifications. |
+| `/{notificationId}/read` | POST | Yes | Authenticated | Mark as read. |
+| `/read-all` | POST | Yes | Authenticated | Mark all as read. |
+| `/preferences` | GET | Yes | Authenticated | Get user notification preferences. |
+| `/preferences` | PUT | Yes | Authenticated | Update notification preferences. |
 
 ---
 
 ## Module 25: Administration — Audit Logs
 
-**Base Route:** `/api/v1/admin/audit-logs`
+**Base Route:** `/api/v1/admin`
 
 | Endpoint | Method | Auth | Permissions | Description |
 |---|---|---|---|---|
@@ -994,7 +994,7 @@ GET /api/v1/catalog/products?search=laptop
 
 ## Module 26: Administration — Settings
 
-**Base Route:** `/api/v1/admin/settings`
+**Base Route:** `/api/v1/admin`
 
 | Endpoint | Method | Auth | Permissions | Description |
 |---|---|---|---|---|
@@ -1016,15 +1016,15 @@ GET /api/v1/catalog/products?search=laptop
 
 | Endpoint | Method | Auth | Permissions | Description |
 |---|---|---|---|---|
-| `/ai/conversations` | GET | Yes | `ai:read` | List user's AI conversations. |
-| `/ai/conversations` | POST | Yes | `ai:create` | Start a new AI conversation. |
-| `/ai/conversations/{conversationId}` | GET | Yes | `ai:read` | Get conversation with messages. |
-| `/ai/conversations/{conversationId}/messages` | POST | Yes | `ai:create` | Send a message (prompt) in conversation. |
-| `/ai/conversations/{conversationId}/messages/{messageId}/accept` | POST | Yes | `ai:decide` | Accept AI suggestion. |
-| `/ai/conversations/{conversationId}/messages/{messageId}/reject` | POST | Yes | `ai:decide` | Reject AI suggestion. |
-| `/ai/prompts` | GET | Yes | `ai:read` | List available prompt templates. |
-| `/ai/prompts/{promptId}` | GET | Yes | `ai:read` | Get prompt template. |
-| `/ai/logs` | GET | Yes | `ai-logs:read` | List AI usage logs (admin). Cursor pagination. |
+| `/conversations` | GET | Yes | `ai:read` | List user's AI conversations. |
+| `/conversations` | POST | Yes | `ai:create` | Start a new AI conversation. |
+| `/conversations/{conversationId}` | GET | Yes | `ai:read` | Get conversation with messages. |
+| `/conversations/{conversationId}/messages` | POST | Yes | `ai:create` | Send a message (prompt) in conversation. |
+| `/conversations/{conversationId}/messages/{messageId}/accept` | POST | Yes | `ai:decide` | Accept AI suggestion. |
+| `/conversations/{conversationId}/messages/{messageId}/reject` | POST | Yes | `ai:decide` | Reject AI suggestion. |
+| `/prompts` | GET | Yes | `ai:read` | List available prompt templates. |
+| `/prompts/{promptId}` | GET | Yes | `ai:read` | Get prompt template. |
+| `/logs` | GET | Yes | `ai-logs:read` | List AI usage logs (admin). Cursor pagination. |
 
 **Rate Limit:** 30 requests / minute per user.
 
@@ -1045,40 +1045,58 @@ The following table consolidates all domain events published and consumed across
 | `Identity.UserAuthenticated` | Auth | Administration, Reporting |
 | `Identity.AuthenticationFailed` | Auth | Administration, Notification |
 | `Identity.UserCreated` | Users | Notification, Administration |
+| `Identity.UserUpdated` | Users | Notification, Administration |
 | `Identity.UserDeactivated` | Users | Workflow, Administration, Notification |
 | `Identity.RoleAssigned` | Roles | Workflow, Administration |
 | `Identity.PermissionsChanged` | Roles | Workflow, Administration |
+| `Identity.SuspiciousActivityDetected` | System | Notification, Administration |
 | `Catalog.ProductCreated` | Products | Sales (read-model), Procurement (read-model), Administration |
 | `Catalog.ProductUpdated` | Products | Sales, Procurement, Administration |
 | `Catalog.ProductDiscontinued` | Products | Sales, Procurement, Administration |
 | `Catalog.ServiceCreated` | Services | Sales, Procurement, Administration |
+| `Catalog.ServiceUpdated` | Services | Sales, Procurement, Administration |
+| `Catalog.ServiceRetired` | Services | Sales, Procurement, Administration |
 | `Catalog.CustomerCreated` | Customers | Notification, Administration |
+| `Catalog.CustomerUpdated` | Customers | Sales, Procurement, Administration |
 | `Catalog.VendorCreated` | Vendors | Notification, Administration |
+| `Catalog.VendorUpdated` | Vendors | Sales, Procurement, Administration |
 | `Catalog.ContactCreated` | Contacts | Administration |
+| `Catalog.ContactUpdated` | Contacts | Administration |
+| `Catalog.ContactDeactivated` | Contacts | Administration |
 | `Sales.QuotationCreated` | Quotations | Workflow, Notification, Administration |
 | `Sales.QuotationApproved` | Quotations | Notification, Reporting |
 | `Sales.QuotationAccepted` | Quotations | Notification, Reporting |
+| `Sales.QuotationExpired` | Quotations | Notification, Reporting |
 | `Sales.SalesInvoiceIssued` | Invoices | Finance, Workflow, Notification, Reporting, Administration |
+| `Sales.SalesInvoiceOverdue` | Invoices | Notification, Reporting, Administration |
 | `Sales.SalesInvoicePaid` | Receipts | Finance, Reporting, Notification |
 | `Sales.ReceiptRecorded` | Receipts | Finance, Reporting, Notification |
 | `Procurement.PurchaseOrderCreated` | POs | Workflow, Notification, Administration |
 | `Procurement.PurchaseOrderApproved` | POs | Notification, Finance, Reporting |
 | `Procurement.PurchaseOrderIssued` | POs | Finance, Notification, Reporting, Administration |
 | `Finance.PurchaseInvoiceRecorded` | Purchase Invoices | Procurement, Workflow, Notification, Reporting, Administration |
+| `Finance.PurchaseInvoiceApproved` | Purchase Invoices | Payments, Notification, Reporting |
 | `Finance.PaymentCompleted` | Payments | Procurement, Sales, Reporting, Notification, Administration |
 | `Finance.ExpenseRecorded` | Expenses | Workflow, Notification, Administration |
+| `Finance.ExpenseApproved` | Expenses | Notification, Reporting |
 | `Finance.EmployeeExpenseSubmitted` | Employee Expenses | Workflow, Notification |
+| `Finance.EmployeeExpenseReimbursed` | Employee Expenses | Notification, Reporting |
 | `Finance.PettyCashDisbursed` | Petty Cash | Notification, Administration |
+| `Finance.PettyCashReconciled` | Petty Cash | Notification, Administration |
 | `Finance.CashPositionChanged` | Cash Flow | Notification, Reporting |
 | `Finance.TaxCalculated` | Taxes | Sales, Reporting |
 | `Finance.CurrencyRateResolved` | Exchange Rates | Sales, Reporting |
 | `Workflow.ApprovalRequested` | Workflows | Notification |
 | `Workflow.ApprovalDecisionMade` | Workflows | Sales, Procurement, Finance, Notification, Administration |
+| `Workflow.ApprovalEscalated` | Workflows | Notification, Administration |
 | `Workflow.WorkflowCompleted` | Workflows | Sales, Procurement, Finance, Notification, Reporting |
 | `Document.DocumentUploaded` | Attachments | Administration |
 | `Document.DocumentProcessed` | OCR | Sales, Finance, Notification |
+| `Document.ExtractionReviewRequired` | OCR | Notification, Administration |
+| `AI.AIAssistanceRequested` | AI Center | Administration, AI Log |
 | `AI.AISuggestionReady` | AI Center | Sales, Procurement, Finance, Document Engine, Reporting |
-| `AI.AIAssistanceAccepted` | AI Center | Administration, Reporting |
+| `AI.AIAssistanceAccepted` | AI Center | Administration, Reporting, AI Log |
+| `AI.AIAssistanceRejected` | AI Center | Administration, AI Log |
 | `Administration.SettingsUpdated` | Settings | Identity, Workflow, Document Engine, AI, Reporting, Notification |
 
 ---

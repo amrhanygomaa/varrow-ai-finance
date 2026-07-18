@@ -46,20 +46,31 @@ In a financial system, dual-write failures (e.g., saving an invoice to the datab
 6. The Relay publishes the event via `EventEmitter2`.
 7. Once successfully dispatched (or acknowledged by subscribers), the Relay marks the outbox event as `published`.
 
-**Outbox Retention:**
-- Published events **MUST** remain in the outbox for audit purposes.
-- Old events may be moved by a scheduled archival job into an archive table after a configurable retention period.
+**Outbox Retention & Immutability Strategy:**
+- **Audit Logs Immutability**: The `administration.audit_logs` table is strictly append-only. Updates and deletions are blocked globally via database triggers.
+- **Outbox Mutability Rules**: To support the retry and tracking lifecycle, the `infrastructure.outbox_events` table allows updates **ONLY** for the following fields: `published`, `retry_count`, `next_retry_at`, `last_error`, and `dead_letter_at`. All other columns (e.g. `id`, `event_name`, `payload`, `created_at`) are immutable. Deletions are blocked by database triggers, and old events are moved to an archive database via a scheduled archival job after a configurable retention period.
 - **Never permanently delete financial events automatically.**
 
-### 3. Relay Strategy
+### 3. Relay Strategy & Concurrency Control
 
-**V1 Implementation: Polling**
+**V1 Implementation: Polling with Distributed Locking**
 - The outbox relay will poll the `outbox_events` table every 2–5 seconds for unpublished events.
-- **Why this is acceptable for V1:** It is extremely simple to implement, requires no complex database features, and the 2-5 second latency is perfectly acceptable for the asynchronous workflows in our financial operations platform.
+- **Concurrency Control in Multi-Instance Deployments (ECS Fargate)**: To prevent multiple application instances from processing the same event, the outbox worker executes a lock-free distributed polling query using PostgreSQL's concurrency features:
+  ```sql
+  SELECT * FROM infrastructure.outbox_events
+  WHERE published = false
+    AND dead_letter_at IS NULL
+    AND next_retry_at <= NOW()
+  ORDER BY created_at ASC
+  LIMIT 100
+  FOR UPDATE SKIP LOCKED;
+  ```
+- **Mechanism**: The `FOR UPDATE SKIP LOCKED` clause locks the selected rows for the duration of the transaction. If another instance queries the table simultaneously, it skips the locked rows and immediately processes the next available block of events, preventing double-publishing and lock contention.
+- **Why this is acceptable for V1**: It provides native distributed locking without introducing external dependencies (like Redis or Zookeeper), keeping deployment costs inside the AWS Free Tier.
 
 **Future Optimization: LISTEN / NOTIFY**
 - In the future, PostgreSQL's `LISTEN / NOTIFY` mechanism can be used to wake the relay immediately when new events arrive.
-- **Why this is optional:** It reduces latency to near-zero and eliminates polling overhead, but adds complexity to the database connection logic. We will defer this until polling overhead becomes a measurable issue.
+- **Why this is optional**: It reduces latency to near-zero and eliminates polling overhead, but adds complexity to the database connection logic. We will defer this until polling overhead becomes a measurable issue.
 
 ### 4. EventEmitter2 for Internal Routing
 

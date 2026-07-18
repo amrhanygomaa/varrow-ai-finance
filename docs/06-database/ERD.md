@@ -66,11 +66,13 @@ For every table, the PK, FKs, Cardinality, Relationship Type, and Ownership are 
 ### 2.5 Finance
 - **Purchase Invoices**: PK `id`. FK `vendor_id` (Cross-context). FK `po_id` (Cross-context reference to `procurement.purchase_orders`). Aggregate Root.
 - **Purchase Invoice Items**: PK `id`. FK `invoice_id` -> `Purchase Invoices` (Cascade). One-to-Many from Purchase Invoice.
-- **Payments**: PK `id`. FK `vendor_id` (Cross-context). FK `invoice_id` (Internal reference). Aggregate Root.
+- **Payments**: PK `id`. FK `vendor_id` (Cross-context). FK `invoice_id` (Internal reference -> `Purchase Invoices`). Aggregate Root.
 - **Expenses**: PK `id`. FK `category_id` (Internal reference). Aggregate Root.
 - **Expense Categories**: PK `id`. Lookup table.
-- **Employee Expenses**: PK `id`. FK `employee_id` (Cross-context reference to `identity.users`). Aggregate Root.
-- **Petty Cash**: PK `id`. FK `custodian_id` (Cross-context reference to `identity.users`). Aggregate Root.
+- **Employee Expenses**: PK `id`. `employee_id` (Cross-context UUID reference to `identity.users.id`, no physical FK). Aggregate Root.
+- **Employee Expense Items**: PK `id`. FK `employee_expense_id` -> `Employee Expenses` (Cascade). FK `category_id` -> `Expense Categories` (Restrict). One-to-Many from Employee Expenses.
+- **Petty Cash**: PK `id`. `custodian_id` (Cross-context UUID reference to `identity.users.id`, no physical FK). Aggregate Root.
+- **Petty Cash Ledger**: PK `(id, created_at)`. FK `petty_cash_id` -> `Petty Cash` (Restrict). One-to-Many from Petty Cash. Partitioned.
 - **Cash Flow**: Materialized View. No strict FKs.
 - **Currencies**, **Exchange Rates**, **Taxes**: PK `id`. Lookup tables.
 
@@ -84,9 +86,9 @@ For every table, the PK, FKs, Cardinality, Relationship Type, and Ownership are 
 
 ### 2.8 Administration & Infrastructure
 - **Settings**: PK `id`. Aggregate Root.
-- **Audit Logs**: PK `id`. Immutable Ledger.
+- **Audit Logs**: PK `(id, created_at)` (Composite PK for partitioning). Immutable Ledger.
 - **Notifications**: PK `id`. Aggregate Root.
-- **Outbox Events**: PK `id`. Event Log.
+- **Outbox Events**: PK `(id, created_at)` (Composite PK for partitioning). Event Log.
 - **Inbox Events**: PK `event_id`. Idempotency tracking.
 
 ---

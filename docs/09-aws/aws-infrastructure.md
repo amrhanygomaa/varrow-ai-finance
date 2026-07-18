@@ -202,6 +202,7 @@ Monitoring is critical to detect and trace issues, especially for our Transactio
 
 ### 8.1 Log Collection (AWS CloudWatch Logs)
 - NestJS uses structured JSON logs (Winston logger) written to stdout, captured by AWS Fargate (or EC2 agent), and streamed to `/aws/ecs/varrow-finance-[env]`.
+  - **Outbox Polling Log Reduction**: To prevent CloudWatch log ingestion cost spikes caused by continuous outbox polling (every 100ms across multiple instances), the outbox worker log level for successful empty poll queries is set to `DEBUG` (hidden in production configurations) rather than `INFO`. Only polls that result in successfully dispatched events are logged at the `INFO` level.
 - PostgreSQL logs (slow queries, errors) are streamed directly from RDS to `/aws/rds/varrow-finance-db-[env]`.
 
 ### 8.2 Metric Filters & Alarms

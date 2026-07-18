@@ -188,14 +188,23 @@ stateDiagram-v2
     HardFailure --> UserError : Friendly error notification
 ```
 
-### 5.1 Retry & Fallback Logic
+### 5.1 Retry, Fallback, & Normalization Logic
 - **API Call Timeouts**: Requests to LLM APIs enforce a strict 15-second timeout window.
 - **Provider Fallback**:
   - In the event of a `429` (Rate Limited) or `500` (Server Error) response from Google Gemini, the application logs the failure and switches to AWS Bedrock.
   - The fallback mechanism is active for 5 minutes before trying to reconnect to the primary provider.
-- **JSON Structure Correction**:
-  - If the model returns text that fails schema validation (e.g. Zod parsing errors), the service makes one automatic retry.
-  - The retry request appends the validation error logs to the model system prompt, instructing it to fix the syntax.
+- **Provider-Specific Prompt Formatting**:
+  - **GeminiAdapter**: Leverages Gemini's native `responseSchema` and system instructions configuration to return structured JSON.
+  - **BedrockAdapter**: Appends custom XML tags and explicit JSON schema directives inside the user prompt text to guide Claude, enforcing structured outputs since Bedrock does not support native schema controls in the same way.
+- **Response Normalization Layer**:
+  - Raw response outputs from either model are passed through a normalization pipeline before parsing.
+  - **Sanitization**: Strips markdown JSON wrappers (e.g., ` ```json ... ``` ` or ` ``` ... ``` `) and sanitizes escape sequences.
+  - **Case/Key Normalization**: Dynamically converts keys to camelCase if a provider responds with snake_case.
+  - **Defaults Injection**: Pre-populates missing optional fields with default values (e.g. empty arrays or nulls) to ensure structural conformance.
+- **JSON Schema Validation (Zod)**:
+  - Once normalized, the JSON object is validated against the target Zod schema model.
+  - If schema validation fails, the service executes one auto-correction attempt.
+  - The retry request appends the validation error logs to the model system prompt, instructing it to resolve the specific structural error.
 
 ---
 

@@ -19,7 +19,8 @@ To ensure consistency, performance, and financial accuracy, the database adheres
 - **Naming Conventions:** `snake_case` for schemas, tables, columns, and indexes. Plural table names (e.g., `users`, `sales_invoices`).
 - **Timezone Strategy:** All dates and timestamps are stored in UTC (`TIMESTAMPTZ`). Application layers handle localization.
 - **Soft Delete Strategy:** A `deleted_at` timestamp is used for soft deletes. Financial records (invoices, payments, outbox events) are *never* permanently deleted automatically.
-- **Audit Fields:** Every table tracks `created_at`, `updated_at`, `created_by`, and `updated_by`.
+  - **Child Entity Handling**: To handle soft deletes of parent-child compositions (e.g. SalesInvoice and its SalesInvoiceItems), the system uses **Application-Layer Cascading**. When a service marks a parent entity as deleted (setting `deleted_at = NOW()`), the service MUST update `deleted_at = NOW()` on all child items in the same database transaction. Database-level `ON DELETE CASCADE` is reserved for physical deletes during historical archiving.
+- **Audit Fields:** Every table tracks `created_at`, `updated_at`, `created_by`, and `updated_by` for strict traceability.
 - **Versioning / Optimistic Locking:** A `version` integer column is incremented on every update to prevent concurrent update anomalies (Optimistic Concurrency Control).
 - **Multi-language Support:** Translation-heavy text fields (e.g., product names, setting descriptions) use `JSONB` columns `{"en": "Name", "ar": "الاسم"}` or dedicated translation tables if querying by text is critical.
 - **Financial Precision:** All monetary amounts use `NUMERIC(19, 4)` to prevent floating-point rounding errors and accommodate fractional tax calculations.
@@ -35,12 +36,12 @@ All domain entities inherit the following core columns to ensure uniform auditin
 
 | Column | Data Type | Nullable | Default | Purpose |
 |---|---|---|---|---|
-| `id` | `UUID` | No | `gen_random_uuid()` | Universally unique primary key. |
-| `created_at` | `TIMESTAMPTZ` | No | `NOW()` | Audit: When the record was created. |
+| `id` | `UUID` | No | `gen_random_uuid()` | Universally unique primary key. *Exception: Partitioned tables (`audit_logs`, `outbox_events`, `petty_cash_ledger`) use a composite primary key `(id, created_at)` to satisfy PostgreSQL partitioning requirements.* |
+| `created_at` | `TIMESTAMPTZ` | No | `NOW()` | Audit: When the record was created. Used as the partition key for high-volume logs. |
 | `updated_at` | `TIMESTAMPTZ` | No | `NOW()` | Audit: When the record was last modified. |
 | `deleted_at` | `TIMESTAMPTZ` | Yes | `NULL` | Soft delete marker. If not null, record is considered deleted. |
-| `created_by` | `UUID` | Yes | `NULL` | Audit: FK to `identity.users.id`. Nullable for system-generated records. |
-| `updated_by` | `UUID` | Yes | `NULL` | Audit: FK to `identity.users.id`. |
+| `created_by` | `UUID` | Yes | `NULL` | Audit: UUID reference to `identity.users.id` (no physical cross-schema foreign key). Nullable for system-generated records. |
+| `updated_by` | `UUID` | Yes | `NULL` | Audit: UUID reference to `identity.users.id`. |
 | `version` | `INTEGER` | No | `1` | Optimistic locking. Must be incremented on every update. |
 
 ---
@@ -70,6 +71,15 @@ All domain entities inherit the following core columns to ensure uniform auditin
 - **Business Rules:** Explicit grant list (deny-by-default).
 
 *(Note: User-Role assignment is a many-to-many join table: `user_roles(user_id, role_id)`).*
+
+#### **Refresh Tokens**
+- **Purpose:** Securely tracks user refresh tokens for session rotation and reuse detection (ADR-002).
+- **Columns:** `id` (UUID PK), `user_id` (UUID FK -> `users.id` CASCADE), `token_hash` (VARCHAR 64 - SHA-256 of the token), `token_family` (UUID), `is_revoked` (BOOLEAN), `expires_at` (TIMESTAMPTZ), `created_at` (TIMESTAMPTZ).
+- **Constraints/Keys:** `UNIQUE(token_hash)`.
+- **Business Rules:** 
+  - Token hashes must be unique.
+  - Refresh tokens are stored **ONLY** as SHA-256 hashes.
+  - Revoking a family sets `is_revoked = true` for all tokens sharing `token_family`.
 
 ---
 
@@ -148,43 +158,65 @@ All domain entities inherit the following core columns to ensure uniform auditin
 
 #### **Purchase Invoices**
 - **Purpose:** Vendor bills to be paid.
-- **Columns:** `id`, `vendor_invoice_number`, `vendor_id`, `po_id`, `subtotal`, `tax_total`, `grand_total`, `currency_code`, `status`, `due_date`.
+- **Columns:** `id`, `vendor_invoice_number` (VARCHAR 50), `vendor_id` (UUID - cross-context), `po_id` (UUID - cross-context), `subtotal` (NUMERIC(19,4)), `tax_total` (NUMERIC(19,4)), `grand_total` (NUMERIC(19,4)), `currency_code` (CHAR(3)), `status` (VARCHAR 20), `due_date` (DATE).
+- **Constraints/Keys:** `CHECK (subtotal >= 0)`, `CHECK (tax_total >= 0)`, `CHECK (grand_total >= 0)`.
 - **Business Rules:** Must be approved via Workflow Engine before payment.
 
 #### **Purchase Invoice Items**
 - **Purpose:** Vendor bill line items.
-- **Columns:** `id`, `invoice_id`, `description`, `quantity`, `unit_price`, `total`.
+- **Columns:** `id`, `invoice_id` (UUID FK -> `purchase_invoices.id` CASCADE), `description` (TEXT), `quantity` (NUMERIC(19,4)), `unit_price` (NUMERIC(19,4)), `total` (NUMERIC(19,4)).
+- **Constraints/Keys:** `CHECK (quantity > 0)`, `CHECK (unit_price >= 0)`, `CHECK (total >= 0)`.
 
 #### **Payments**
 - **Purpose:** Outgoing money transfers to vendors.
-- **Columns:** `id`, `payment_number`, `vendor_id`, `invoice_id`, `amount`, `currency_code`, `payment_method`, `reference_number`, `payment_date`.
+- **Columns:** `id`, `payment_number` (VARCHAR 50), `vendor_id` (UUID - cross-context), `invoice_id` (UUID FK -> `purchase_invoices.id` RESTRICT), `amount` (NUMERIC(19,4)), `currency_code` (CHAR(3)), `payment_method` (VARCHAR 20), `reference_number` (VARCHAR 50), `payment_date` (TIMESTAMPTZ).
+- **Constraints/Keys:** `CHECK (amount > 0)`.
 
 #### **Expenses** & **Expense Categories**
 - **Purpose:** Direct company spending not tied to POs.
-- **Columns (Expenses):** `id`, `category_id`, `amount`, `currency_code`, `date`, `description`, `receipt_attachment_id`.
-- **Columns (Categories):** `id`, `name`, `gl_account_code`.
+- **Columns (Expenses):** `id`, `category_id` (UUID FK -> `expense_categories.id` RESTRICT), `amount` (NUMERIC(19,4)), `currency_code` (CHAR(3)), `date` (DATE), `description` (TEXT), `receipt_attachment_id` (UUID - cross-context).
+- **Columns (Categories):** `id`, `name` (VARCHAR 100), `gl_account_code` (VARCHAR 50).
+- **Constraints/Keys:** `CHECK (amount > 0)`.
 
 #### **Employee Expenses**
 - **Purpose:** Staff reimbursement claims.
-- **Columns:** `id`, `employee_id` (FK `identity.users`), `total_amount`, `currency_code`, `status`, `submitted_date`.
+- **Columns:** `id`, `employee_id` (UUID - loose cross-context reference to `identity.users.id`), `total_amount` (NUMERIC(19,4)), `currency_code` (CHAR(3)), `status` (VARCHAR 20), `submitted_date` (TIMESTAMPTZ).
+- **Constraints/Keys:** `CHECK (total_amount >= 0)`.
+- **Business Rules:** Enforces application-layer cascading soft delete to `employee_expense_items`.
+
+#### **Employee Expense Items**
+- **Purpose:** Itemized receipts inside an employee expense claim.
+- **Columns:** `id`, `employee_expense_id` (UUID FK -> `employee_expenses.id` CASCADE), `category_id` (UUID FK -> `expense_categories.id` RESTRICT), `amount` (NUMERIC(19,4)), `currency_code` (CHAR(3)), `description` (TEXT), `receipt_attachment_id` (UUID - loose cross-context reference to `document.attachments.id`).
+- **Constraints/Keys:** `CHECK (amount >= 0)`.
 
 #### **Petty Cash**
 - **Purpose:** Small cash on hand tracking.
-- **Columns:** `id`, `custodian_id` (FK users), `balance`, `currency_code`, `location`.
-- **Business Rules:** Transactions tracked via an append-only ledger table (`petty_cash_ledger`).
+- **Columns:** `id`, `custodian_id` (UUID - loose cross-context reference to `identity.users.id`), `balance` (NUMERIC(19,4)), `currency_code` (CHAR(3)), `location` (VARCHAR 100).
+- **Constraints/Keys:** `CHECK (balance >= 0)`.
+- **Business Rules:** Transactions tracked via append-only `petty_cash_ledger`.
+
+#### **Petty Cash Ledger**
+- **Purpose:** Append-only ledger tracking all disbursements, deposits, and reconciliations for petty cash.
+- **Columns:** `id` (UUID), `petty_cash_id` (UUID FK -> `petty_cash.id` RESTRICT), `amount` (NUMERIC(19,4)), `type` (VARCHAR 20 - DEPOSIT, WITHDRAWAL, RECONCILIATION_DISCREPANCY), `description` (TEXT), `reference_number` (VARCHAR 50), `created_at` (TIMESTAMPTZ), `created_by` (UUID).
+- **Constraints/Keys:** Composite primary key `(id, created_at)` for monthly range partitioning. `CHECK (amount >= 0)`.
+- **Business Rules:**
+  - Strictly append-only. Triggers prevent updates and deletes.
+  - Partitioned monthly by `created_at`.
 
 #### **Cash Flow**
 - **Purpose:** Daily aggregation of receipts and payments.
 - **Columns:** `date`, `inflow`, `outflow`, `net`, `currency_code`.
-- **Business Rules:** Often implemented as a Materialized View for reporting rather than a transactional table.
+- **Business Rules:** Implemented as a Materialized View for reporting, querying across `sales.receipts` and `finance.payments` schemas (documented cross-context dependency exception).
 
 #### **Currencies** & **Exchange Rates**
 - **Purpose:** Multi-currency support and conversion.
-- **Columns (Rates):** `id`, `base_currency`, `target_currency`, `rate` (NUMERIC(19,6)), `effective_date`.
+- **Columns (Rates):** `id`, `base_currency` (CHAR(3)), `target_currency` (CHAR(3)), `rate` (NUMERIC(19,6)), `effective_date` (DATE).
+- **Constraints/Keys:** `CHECK (rate > 0)`.
 
 #### **Taxes**
 - **Purpose:** Tax/VAT configuration rules.
-- **Columns:** `id`, `name`, `rate` (NUMERIC(5,4)), `is_active`.
+- **Columns:** `id`, `name` (VARCHAR 50), `rate` (NUMERIC(5,4)), `is_active` (BOOLEAN).
+- **Constraints/Keys:** `CHECK (rate >= 0 AND rate <= 1.0)`.
 
 ---
 
@@ -221,8 +253,9 @@ All domain entities inherit the following core columns to ensure uniform auditin
 
 #### **Audit Logs**
 - **Purpose:** Immutable tracking of sensitive actions.
-- **Columns:** `id`, `event_time`, `user_id`, `action`, `resource`, `resource_id`, `old_values` (JSONB), `new_values` (JSONB), `ip_address`.
-- **Business Rules:** Append-only. Updates/Deletes explicitly blocked by DB triggers.
+- **Columns:** `id` (UUID), `event_time` (TIMESTAMPTZ), `user_id` (UUID), `action` (VARCHAR 100), `resource` (VARCHAR 50), `resource_id` (UUID), `old_values` (JSONB), `new_values` (JSONB), `ip_address` (VARCHAR 45), `created_at` (TIMESTAMPTZ).
+- **Constraints/Keys:** Composite primary key `(id, created_at)` for monthly range partitioning.
+- **Business Rules:** Append-only. Updates and Deletes are explicitly blocked by PostgreSQL database triggers.
 
 ---
 
@@ -248,8 +281,12 @@ All domain entities inherit the following core columns to ensure uniform auditin
 ### 3.11 Infrastructure Schema (`infrastructure`)
 
 #### **Outbox Events** (Per ADR-003)
-- **Columns:** `id`, `aggregate_type`, `aggregate_id`, `event_name`, `payload` (JSONB), `version`, `retry_count`, `next_retry_at`, `dead_letter_at`, `created_at`.
-- **Business Rules:** Written in same transaction as domain entity. Never automatically deleted for financial events.
+- **Columns:** `id` (UUID), `aggregate_type` (VARCHAR 50), `aggregate_id` (UUID), `event_name` (VARCHAR 100), `payload` (JSONB), `version` (INTEGER), `retry_count` (INTEGER), `next_retry_at` (TIMESTAMPTZ), `dead_letter_at` (TIMESTAMPTZ), `created_at` (TIMESTAMPTZ).
+- **Constraints/Keys:** Composite primary key `(id, created_at)` for monthly range partitioning.
+- **Business Rules:** 
+  - Written in the same database transaction as the domain entity update.
+  - Never automatically deleted for financial events.
+  - **Immutability and Mutability Rules**: Triggers block `DELETE` operations. Triggers block `UPDATE` operations on all columns *except* metadata fields required for delivery retry and status tracking: `published` (boolean), `retry_count`, `next_retry_at`, `last_error`, and `dead_letter_at`.
 
 #### **Inbox Events** (Per ADR-003)
 - **Columns:** `event_id` (UUID PK), `processed_at` (TIMESTAMPTZ).
@@ -288,7 +325,7 @@ All domain entities inherit the following core columns to ensure uniform auditin
 - **Encryption at Rest:** Handled by AWS RDS (KMS encryption).
 - **PII:** Contact personal information (emails, phones) is restricted via application-level RBAC.
 - **Secrets:** Passwords hashed via `bcrypt`. API keys stored in AWS Secrets Manager, not in the database.
-- **Immutable Ledgers:** `audit_logs` and `outbox_events` are protected against `UPDATE` and `DELETE` via PostgreSQL Triggers.
+- **Immutable Ledgers:** `audit_logs` is strictly protected against both `UPDATE` and `DELETE` actions via PostgreSQL triggers. The `outbox_events` and `petty_cash_ledger` tables are protected against `DELETE` actions, but allow `UPDATE` operations exclusively on status/retry/reconciliation metadata columns.
 
 ---
 
